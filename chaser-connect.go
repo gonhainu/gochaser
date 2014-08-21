@@ -21,6 +21,9 @@ type CHaserConnect struct {
   socket *net.TCPConn
 }
 
+type ErrConnectionClose byte
+
+/* コンストラクタ */
 func NewCHaserConnect(host, port, name string) *CHaserConnect {
   tcp_addr, err := net.ResolveTCPAddr("tcp",  host + ":" + port)
   if err != nil {
@@ -37,92 +40,94 @@ func NewCHaserConnect(host, port, name string) *CHaserConnect {
   return conn
 }
 
-func (conn *CHaserConnect) getReady() []byte {
+/* 準備信号 */
+func (conn *CHaserConnect) getReady() ([]byte, error) {
   info := conn.Receive()
   conn.Command("gr")
-  info = conn.Receive()
-  return info
+  info, err := conn.ReceiveInfo()
+  return info, err
 }
 
+/* ターン終了 */
 func (conn *CHaserConnect) TurnEnd() {
   conn.Command("#")
 }
 
 func (conn *CHaserConnect) walkRight() []byte {
   conn.Command("wr")
-  info := conn.Receive()
+  info, _ := conn.ReceiveInfo()
   return info
 }
 
 func (conn *CHaserConnect) walkLeft() []byte {
   conn.Command("wl")
-  info := conn.Receive()
+  info, _ := conn.ReceiveInfo()
   return info
 }
 
 func (conn *CHaserConnect) walkUp() []byte {
   conn.Command("wu")
-  info := conn.Receive()
+  info, _ := conn.ReceiveInfo()
   return info
 }
 
 func (conn *CHaserConnect) walkDown() []byte {
   conn.Command("wd")
-  info := conn.Receive()
+  info, _ := conn.ReceiveInfo()
   return info
 }
 
 func (conn *CHaserConnect) searchUp() []byte {
   conn.Command("su")
-  info := conn.Receive()
+  info, _ := conn.ReceiveInfo()
   return info
 }
 
 func (conn *CHaserConnect) searchDown() []byte {
   conn.Command("sd")
-  info := conn.Receive()
+  info, _ := conn.ReceiveInfo()
   return info
 }
 
 func (conn *CHaserConnect) searchRight() []byte {
   conn.Command("sr")
-  info := conn.Receive()
+  info, _ := conn.ReceiveInfo()
   return info
 }
 
 func (conn *CHaserConnect) searchLeft() []byte {
   conn.Command("sl")
-  info := conn.Receive()
+  info, _ := conn.ReceiveInfo()
   return info
 }
 
 func (conn *CHaserConnect) lookUp() []byte {
   conn.Command("lu")
-  info := conn.Receive()
+  info, _ := conn.ReceiveInfo()
   return info
 }
 
 func (conn *CHaserConnect) lookDown() []byte {
   conn.Command("ld")
-  info := conn.Receive()
+  info, _ := conn.ReceiveInfo()
   return info
 }
 
 func (conn *CHaserConnect) lookLeft() []byte {
   conn.Command("ll")
-  info := conn.Receive()
+  info, _ := conn.ReceiveInfo()
   return info
 }
 
 func (conn *CHaserConnect) lookRight() []byte {
   conn.Command("lr")
-  info := conn.Receive()
+  info, _ := conn.ReceiveInfo()
   return info
 }
 
 func (conn *CHaserConnect) putUp() []byte {
   conn.Command("pu")
-  info := conn.Receive()
+  info, _ := conn.ReceiveInfo()
   return info
 }
 
@@ -142,10 +147,26 @@ func (conn *CHaserConnect) Receive() []byte {
   return result
 }
 
-// func (conn *CHaserConnect) ReceiveInfo() []int64 {
-//   result := conn.Receive()
-//   info :=
-// }
+func (conn *CHaserConnect) ReceiveInfo() ([]byte, error) {
+  result := conn.Receive()
+  info := ToIntArray(result[:10])
+  if info[0] == 0 {
+    return info[1:len(info)], ErrConnectionClose(info[0])
+  }
+  return info[1:len(info)], nil
+}
+
+func (e ErrConnectionClose) Error() string {
+  return fmt.Sprintf("Connection Closed")
+}
+
+func ToIntArray(info []byte) []byte {
+  result := make([]byte, len(info))
+  for i, char := range info {
+    result[i] = char - '0'
+  }
+  return result
+}
 
 func Send(socket *net.TCPConn, msg string) {
   _, err := socket.Write([]byte(msg))
@@ -167,16 +188,20 @@ func Recv(socket *net.TCPConn) []byte {
 func main() {
   host := "localhost"
   port := "2009"
-  name := "hoge"
+  name := "Go"
 
   connect := NewCHaserConnect(host, port, name)
   fmt.Println(connect.host)
   fmt.Println(connect.port)
   fmt.Println(connect.name)
   for {
-    connect.getReady()
+    _, err := connect.getReady()
+    if err != nil {
+      fmt.Println(err)
+      connect.Close()
+      os.Exit(0)
+    }
     connect.searchUp()
     connect.TurnEnd()
   }
-  connect.Close()
 }
